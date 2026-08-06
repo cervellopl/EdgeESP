@@ -35,7 +35,7 @@ zig c++ -target x86_64-windows-gnu -std=c++17 -O1 -w -nostdinc++ -nostdlib++ -fn
 ```
 
 ```bash
-zig c++ -target x86_64-windows-gnu -std=c++17 -O1 -w -nostdinc++ -nostdlib++ -fno-exceptions -fno-rtti -fno-threadsafe-statics -I tools/course-test/shim -I include -I src -o tools/course-test/test_laps.exe tools/course-test/test_laps.cpp src/ride/RideComputer.cpp src/nav/Geo.cpp src/Settings.cpp
+zig c++ -target x86_64-windows-gnu -std=c++17 -O1 -w -nostdinc++ -nostdlib++ -fno-exceptions -fno-rtti -fno-threadsafe-statics -I tools/course-test/shim -I include -I src -o tools/course-test/test_laps.exe tools/course-test/test_laps.cpp src/ride/RideComputer.cpp src/nav/Geo.cpp src/Settings.cpp src/ride/ElevationProfile.cpp src/ride/Zones.cpp
 ```
 
 `-fno-threadsafe-statics` keeps the compiler from emitting `__cxa_guard_*` calls

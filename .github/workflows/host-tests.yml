@@ -58,7 +58,8 @@ jobs:
           host_test test_weather     src/sensors/Weather.cpp
           host_test test_envhistory  src/sensors/EnvHistory.cpp
           host_test test_settings    src/Settings.cpp
-          host_test test_laps        src/ride/RideComputer.cpp src/nav/Geo.cpp src/Settings.cpp
+          host_test test_laps        src/ride/RideComputer.cpp src/nav/Geo.cpp src/Settings.cpp \
+                                     src/ride/ElevationProfile.cpp src/ride/Zones.cpp
           host_test test_workout     src/ride/Workout.cpp src/Settings.cpp
           host_test test_load        src/ride/TrainingLoad.cpp
           host_test test_zones       src/ride/Zones.cpp

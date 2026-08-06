@@ -1,0 +1,8 @@
+# a comment line
+name Test Session
+warmup time 10:00
+repeat 3
+work time 2:30 power 280 320
+rest time 1:00 power 100 140
+end
+cooldown time 5:00
