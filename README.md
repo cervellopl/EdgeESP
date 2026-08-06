@@ -24,7 +24,8 @@ auto-lap, both on by default, both configurable.
 
 **GPS** — u-blox NEO-M8/M9/M10 over UBX binary at 5 Hz. NMEA is disabled entirely; the
 firmware auto-detects the module's baud rate, configures it (VALSET on M9/M10, legacy
-CFG on M8), and reads a single `NAV-PVT` frame per solution.
+CFG on M8), and reads a single `NAV-PVT` frame per solution. A dropout that lasts long
+enough to be real is **said out loud** rather than left to look like a rest at the lights.
 
 **Sensors** — BLE heart rate, speed/cadence, and power meters. Pairs once, reconnects
 automatically, survives the sensor going out of range mid-ride. Shows 3-second,
@@ -51,7 +52,8 @@ power vanishes without warning, the ride is **picked up again at the next boot**
 
 **Phone link** — BLE GATT server exposing Nordic UART, Battery and Device Information
 services. Streams live telemetry as JSON, accepts start/stop/lap/save commands, sets the
-clock, and shows incoming-call or message banners pushed from the phone. A ready-made
+clock, and shows incoming-call or message banners pushed from the phone. Off-course and
+GPS-dropout warnings are pushed the other way, so the phone shows what the head unit does. A ready-made
 [Web Bluetooth companion page](companion/index.html) is included — open it in Chrome on
 Android and press Connect; no app install, no build step.
 
@@ -97,7 +99,7 @@ the ones you do not use, so the rotation is only as long as you want it:
 | **Weather** | Conditions and icon, wind dial resolved against your heading with head/cross components, 12-hour temperature and rain graph, sunset and daylight left |
 | **Weather history** | Eight hours of on-board temperature and pressure as stacked graphs, with the barometric tendency and the ride's high and low |
 | **Profile** | The whole ride's elevation against distance, filled and coloured by gradient — or the whole course with your position on it |
-| **Status** | GPS detail, every sensor, course, barometer, battery, storage, Wi-Fi |
+| **Status** | GPS detail and how long any dropout has lasted, every sensor, course, barometer, battery, storage, Wi-Fi |
 
 ## Gear
 
@@ -476,6 +478,75 @@ Set `MAG_DECLINATION_DEG` for where you ride: GPS bearings are true north and a
 magnetometer reads magnetic, so without it the needle and the bearing-to-start disagree
 by that angle.
 
+## Losing the GPS
+
+A flat battery announces itself; a lost fix does not. The speed drops to zero, the
+distance stops growing, and the screen goes on looking exactly as healthy as it did at
+the lights — which is why the firmware says it instead.
+
+| What happened | Held for | What you get |
+|---|---|---|
+| Accuracy worse than **30 m** | 30 s | "GPS accuracy poor", with the figure and the satellite count |
+| **No 3D fix** | 15 s | "GPS SIGNAL LOST — distance is not counting". Sticky red banner mid-ride, a passing notification when parked |
+| **Nothing at all** from the receiver | 5 s | "GPS NOT RESPONDING — check the wiring" |
+| Fix back and holding | 5 s | "GPS back after 2:40", and the banner comes down |
+
+A banner is a moment and the outage is not, so the **status bar carries it for as long as
+it lasts**. On a fix too loose to navigate on the satellite bars and their count turn
+amber — the satellites are up there, the fix they produce is not one the navigation would
+work with. Once the fix is gone the bars and the count go with it, because four empty bars
+and a satellite count left over from the last message that arrived say nothing, and a
+blinking red `LOST` takes their place — or `NO RX` when the receiver itself has stopped
+answering. Both are short enough that the sensor chips stay exactly where they were.
+
+The bar reads the *held* tier, the same one the banner came from, so a three-second
+underpass never reaches it: if it says `LOST`, it means it. The instantaneous state is
+still there underneath while the warning has not been raised — the bars empty and the
+count greys the moment a fix drops, as they always did.
+
+The **Status page** carries the one thing neither the banner nor the bar can: *how long*.
+A `Signal` row under the GPS detail reads `no fix for 1:24`, `receiver silent for 0:40 —
+check the wiring`, or `too loose to navigate on for 2:10` while an outage runs. A dropout
+ten seconds old and one ten minutes old are identical in every other field on that page,
+and they mean very different things about where the ride's distance went. When the fix is
+healthy the row says so, and remembers the last dropout's length — `steady — last dropout
+lasted 2:40` — because after the banner has gone that is the only place the ride's one bad
+patch is still recorded.
+
+The **phone gets told too**, since a rider following the ride on a bar-mounted screen
+should not be the last to know. It arrives as its own small frame — `{"gw":2,"gout":84}`,
+tier and seconds — rather than as fields on the ride frame, which is already close enough
+to a 185-byte MTU that adding two keys could truncate it. The frame is sent only while
+something is wrong, so a ride that never drops its fix pays nothing for the feature, and
+exactly one frame goes out when the warning clears so a phone that watched the dropout is
+told it ended instead of being left showing a stale banner. The
+[companion page](companion/index.html) renders it as a banner above the fields, amber for
+a loose fix and red for a lost one.
+
+The 30 m figure is not chosen for roundness: it is the same accuracy course snapping
+refuses to work with, so the rider hears about exactly the fixes the navigation has
+already quietly stopped believing.
+
+The dwell times are the whole design. Every bridge, underpass and avenue of trees costs a
+few seconds of fix, and a device that warned about each of them would be turned off by
+the second ride. Silence from the receiver gets almost no grace by comparison, because it
+is not weather — it is a wire, and it is the one failure the rider can do something about.
+
+Two cases are handled deliberately:
+
+- **A flickering fix is still an outage.** Under a city street the receiver hands out one
+  usable second in five. The outage clock is not reset by a single good sample, only by a
+  recovery that holds for 5 s — otherwise a rider with no usable position for ten minutes
+  would never be told, because the clock restarted every few seconds.
+- **Waiting for the first fix is not a failure.** Nothing is warned about until a fix has
+  been seen at least once, so a cold start in a car park says nothing. The boot screen
+  already reports whether the receiver answered at all.
+
+Escalation does not serve the same wait twice: a dropout that turns into a dead receiver
+warns immediately rather than starting its dwell again. Coming part of the way back — a
+silent receiver returning to merely no-fix — says nothing, and the warning stands until
+the fix genuinely returns.
+
 ## Low battery
 
 Three warnings on the way down, each fired once, with a beep and a banner:
@@ -662,6 +733,7 @@ include/config.h        every pin, and the defaults for everything below
 src/Settings            runtime settings + all unit conversion, host-tested
 src/main.cpp            wiring, 10 Hz ride loop, 10 Hz render loop
 src/gps/UbloxGps        UBX parser + auto-configuration
+src/gps/GpsWarn         dropout thresholds and their dwell times, host-tested
 src/ride/RideComputer   metrics, auto-pause, laps, normalized power, breadcrumb buffer
 src/ride/FitEncoder     FIT protocol writer (definitions, records, laps, session, CRC)
 src/ride/Recorder       SD card, .fit + .gpx streaming, crash recovery

@@ -73,8 +73,12 @@ zig c++ -target x86_64-windows-gnu -std=c++17 -O1 -w -nostdinc++ -nostdlib++ -fn
 zig c++ -target x86_64-windows-gnu -std=c++17 -O1 -w -nostdinc++ -nostdlib++ -fno-exceptions -fno-rtti -fno-threadsafe-statics -I tools/course-test/shim -I include -I src -o tools/course-test/test_battery.exe tools/course-test/test_battery.cpp src/power/BatteryWarn.cpp
 ```
 
-Expected: `95`, `67`, `43`, `75`, `64`, `75`, `48`, `62`, `42`, `35`, `43`, `24` and
-`29 checks, 0 failures`.
+```bash
+zig c++ -target x86_64-windows-gnu -std=c++17 -O1 -w -nostdinc++ -nostdlib++ -fno-exceptions -fno-rtti -fno-threadsafe-statics -I tools/course-test/shim -I include -I src -o tools/course-test/test_gpsfix.exe tools/course-test/test_gpsfix.cpp src/gps/GpsWarn.cpp
+```
+
+Expected: `95`, `67`, `43`, `75`, `64`, `75`, `48`, `62`, `42`, `35`, `43`, `24`,
+`29` and `41 checks, 0 failures`.
 
 ## What the GPX fixtures cover
 
@@ -227,6 +231,30 @@ it.
 
 The test drives the same state machine `Power::updateWarnings()` runs, rather
 than the two helpers in isolation — the sequencing is where the bugs live.
+
+## What the GPS-warning tests cover
+
+The thresholds, and above all the **dwell**. A dropout one second short of the hold must
+say nothing — that is every bridge and underpass on the ride — and a real one must warn
+exactly once however long it lasts.
+
+The case that drove the design is a **flickering fix**: the test feeds one good second in
+five for a minute, which is what a city street actually gives you, and asserts it is
+still called an outage. An implementation that resets the clock on each good sample
+passes every other test in the file and never warns here, leaving a rider with no usable
+position for ten minutes perfectly uninformed.
+
+Also covered: nothing being said before the first fix of the day, since a cold start in a
+car park is not a fault; a recovery that does not hold for its full five seconds leaving
+the warning up; the outage length reported at recovery being the outage itself and not
+the recovery with it; escalation from a lost fix to a silent receiver firing immediately
+rather than serving the dwell again, and dropping back from silent to merely lost saying
+nothing; and the ordering of the three dwells, since a receiver that has stopped talking
+must always be believed sooner than a fix that has merely gone loose.
+
+One tier check exists for a specific way to get it wrong: a module that has stopped
+sending can still leave a perfectly healthy-looking 3D solution behind it, so silence has
+to outrank what the last message said.
 
 ## What the checkpoint tests cover
 

@@ -93,6 +93,12 @@ class Ui {
   void clearAlert();
 
   void setWifiInfo(bool on, const char* ip) { _wifiOn = on; strncpy(_wifiIp, ip, sizeof(_wifiIp) - 1); }
+  // The GPS watchdog's held tier, so the status bar can say what the banner
+  // said after the banner has gone. 0 = nothing wrong, and outageS is then the
+  // length of the last dropout rather than one in progress.
+  void setGpsWarning(uint8_t tier, uint16_t outageS) {
+    _gpsTier = tier; _gpsOutS = outageS;
+  }
 
   // File picker, shared between courses and workouts
   void openCoursePicker();
@@ -169,6 +175,8 @@ class Ui {
   bool _alertSticky = false;
   bool _wifiOn = false;
   char _wifiIp[16] = {0};
+  uint8_t  _gpsTier = 0;
+  uint16_t _gpsOutS = 0;
 
   // file picker
   enum class PickerMode : uint8_t { Course, Workout };

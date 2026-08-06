@@ -105,6 +105,17 @@
 #define WEATHER_RAIN_ALERT_MM   0.3f   // an hour wetter than this counts as rain
 #define WEATHER_RAIN_ALERT_MIN    75   // warn about rain arriving within this
 
+// --- GPS signal watchdog ---------------------------------------------------
+// Thresholds in seconds because that is how a dropout is experienced. The
+// accuracy figure is the same one course snapping refuses to work with, so a
+// fix the navigation has quietly stopped believing is one the rider hears about.
+#define GPS_ACC_WARN_M        30.0f   // hAcc at or above this is "not worth navigating on"
+#define GPS_SILENT_S             10   // no UBX message at all: the receiver, not the sky
+#define GPS_DEGRADED_HOLD_S      30   // sloppy fix held this long before it is mentioned
+#define GPS_LOST_HOLD_S          15   // no fix held this long before it is called a loss
+#define GPS_SILENT_HOLD_S         5   // ...and a silent receiver gets barely any grace
+#define GPS_FIX_HOLD_S            5   // fix back this long before the warning comes down
+
 #define BATT_FULL_MV          4180
 #define BATT_EMPTY_MV         3300
 #define BATT_CRITICAL_MV      3400

@@ -171,5 +171,15 @@ void PhoneLink::update(const RideState& s) {
         g_course.crossTrack());
     sendLine(buf);
   }
+
+  // The GPS warning gets a frame of its own, and only while there is something
+  // to say - a ride that never loses its fix pays nothing for this. One last
+  // frame goes out when the warning clears, so a phone that watched the
+  // dropout is told it ended rather than being left showing a stale banner.
+  if (_gpsTier || _gpsTier != _lastGpsTierSent) {
+    snprintf(buf, sizeof(buf), "{\"gw\":%u,\"gout\":%u}\n", _gpsTier, _gpsOutS);
+    sendLine(buf);
+    _lastGpsTierSent = _gpsTier;
+  }
   setBattery(s.batteryPct);
 }

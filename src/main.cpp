@@ -3,6 +3,7 @@
 #include "ui/Display.h"
 #include "ui/Ui.h"
 #include "gps/UbloxGps.h"
+#include "gps/GpsWarn.h"
 #include "ride/RideComputer.h"
 #include "ride/Recorder.h"
 #include "sensors/BleSensors.h"
@@ -24,6 +25,7 @@
 static EdgeDisplay  lcd;
 static Ui           ui;
 static UbloxGps     gps;
+static GpsWatch     gpsWatch;
 static RideComputer rideComputer;
 static Recorder     recorder;
 static Baro         baro;
@@ -398,6 +400,61 @@ static void handleWorkoutEvents() {
   }
 }
 
+// Losing the GPS is the one failure the screen hides rather than shows: the
+// speed goes to zero and the distance simply stops growing, which is exactly
+// what a rest at the lights looks like. So a dropout long enough to be real is
+// said out loud, once, and so is getting the fix back.
+static void handleGpsEvents() {
+  static bool sticky = false;         // did the GPS put the red banner up?
+  char body[64];
+  const GpsFix& f = gps.fix();
+  bool riding = rideComputer.state().recording;
+
+  switch (gpsWatch.takeEvent()) {
+    case GpsEvent::Degraded:
+      snprintf(body, sizeof(body), "%.0f %s on %u sats - distance will drift",
+               g_settings.distShort(f.hAcc), g_settings.distShortUnit(), f.numSV);
+      ui.notify("GPS accuracy poor", body);
+      g_beeper.cue();
+      g_power.noteActivity();
+      break;
+
+    case GpsEvent::Lost: {
+      const char* what = f.fixType == 2 ? "2D only" : "no fix";
+      snprintf(body, sizeof(body), "%s - distance is not counting", what);
+      // Mid-ride this is worth the sticky banner: every second it goes unnoticed
+      // is a second missing from the file. Parked, it is only worth saying.
+      if (riding) { ui.alert("GPS SIGNAL LOST", body); sticky = true; g_beeper.alert(); }
+      else        { ui.notify("GPS signal lost", body); g_beeper.cue(); }
+      g_power.noteActivity();
+      break;
+    }
+
+    case GpsEvent::Silent:
+      // Nothing at all from the receiver is a wiring or power fault, not
+      // weather, so it says something the rider can actually act on.
+      ui.alert("GPS NOT RESPONDING", "receiver silent - check the wiring");
+      sticky = true;
+      g_beeper.alert();
+      g_power.noteActivity();
+      break;
+
+    case GpsEvent::Reacquired: {
+      uint16_t s = gpsWatch.outageSeconds();
+      if (s >= 60) snprintf(body, sizeof(body), "GPS back after %u:%02u", s / 60, s % 60);
+      else         snprintf(body, sizeof(body), "GPS back after %u s", s);
+      // Only take down a banner this handler put up - the off-course alert is
+      // sticky too, and it is still true.
+      if (sticky) { ui.clearAlert(); sticky = false; }
+      ui.toast(body, 3000);
+      g_beeper.chirp();
+      break;
+    }
+
+    default: break;
+  }
+}
+
 // The battery is the one failure that takes the ride with it, so the warnings
 // are graded: a heads-up, then a real alert that also buys some runtime back,
 // then closing the ride off while there is still power to do it with.
@@ -561,6 +618,7 @@ void loop() {
   handleWorkoutEvents();
   handleLapEvent();
   handleCourseEvents();
+  handleGpsEvents();
   handlePowerEvents();
   handleWeatherEvents();
   g_portal.handle();
@@ -614,8 +672,18 @@ void loop() {
   // --- once a second: altitude reference, history, low-battery guard ---
   static uint32_t lastSecond = 0;
   if (now - lastSecond >= 1000) {
+    uint32_t secDt = now - lastSecond;
     lastSecond = now;
     const RideState& s = rideComputer.state();
+
+    // The GPS watchdog runs on this beat rather than the 10 Hz one: everything
+    // it decides is measured in seconds, and it reads the receiver directly so
+    // a module that has stopped talking altogether still counts.
+    gpsWatch.update(s.fix.valid, s.fix.hAcc, gps.staleSeconds(), secDt);
+    // The banner is a moment; the bar is for the rest of the outage.
+    ui.setGpsWarning(gpsWatch.tier(), gpsWatch.outageSeconds());
+    g_phone.setGpsWarning(gpsWatch.tier(), gpsWatch.outageSeconds());
+
     if (s.fix.valid && s.fix.hAcc < 15.0f) baro.calibrateToGps(s.fix.altMSL);
     // Rolls the daily buckets over at midnight even on a ride that spans it.
     if (s.fix.timeValid) g_load.setNow(s.fix.unixTime);

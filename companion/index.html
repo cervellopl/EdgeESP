@@ -37,6 +37,8 @@
 <main>
   <div id="offcourse" style="display:none;background:#c0392b;color:#fff;padding:12px 14px;
        border-radius:8px;margin-bottom:14px;font-weight:600"></div>
+  <div id="gpswarn" style="display:none;background:#c0392b;color:#fff;padding:12px 14px;
+       border-radius:8px;margin-bottom:14px;font-weight:600"></div>
   <div id="cname" style="color:#888;font-size:13px;margin-bottom:10px"></div>
   <div class="grid" id="grid"></div>
 
@@ -123,6 +125,16 @@ function render(s) {
     banner.style.display = s.coff ? 'block' : 'none';
     banner.textContent = `OFF COURSE — ${Math.round(s.cx)} m from the route`;
     if (s.cname) $('cname').textContent = `${s.cname} · ${s.cpct}%`;
+  }
+  // GPS warning frames arrive only while something is wrong, plus one when it
+  // clears - so the banner is taken down by that frame, never left stale.
+  if (s.gw !== undefined) {
+    const b = $('gpswarn');
+    b.style.display = s.gw ? 'block' : 'none';
+    b.style.background = s.gw > 1 ? '#c0392b' : '#c8860d';
+    const what = s.gw === 3 ? 'GPS RECEIVER SILENT' :
+                 s.gw === 2 ? 'GPS SIGNAL LOST' : 'GPS ACCURACY POOR';
+    b.textContent = `${what} — ${fmt(s.gout)}`;
   }
   if (s.st !== undefined) document.title = `${STATUS[s.st] || ''} - EdgeESP`;
   // The device's own fix is the best position we have for a forecast.

@@ -1369,18 +1369,36 @@ void Ui::drawStatusBar() {
   _lcd->setFont(&fonts::Font2);
   _lcd->setTextDatum(lgfx::textdatum_t::middle_left);
 
-  // GPS: four bars scaled by satellites in the solution
-  int bars = !s.fix.valid ? 0 : s.fix.numSV >= 10 ? 4 : s.fix.numSV >= 8 ? 3 : s.fix.numSV >= 6 ? 2 : 1;
-  for (int i = 0; i < 4; i++) {
-    int h = 4 + i * 4;
-    _lcd->fillRect(6 + i * 6, STATUS_H - 4 - h, 4, h, i < bars ? C_GOOD : C_LINE);
+  // GPS: four bars scaled by satellites in the solution, and - once the
+  // watchdog is holding a warning - what is wrong in place of a satellite
+  // count that has stopped telling the truth. The tier is the held one, so a
+  // three-second underpass never reaches the bar; if it says LOST, it means it.
+  int x = 60;                       // where the sensor chips begin
+  if (_gpsTier >= 2) {
+    // Four empty bars and a satellite count left over from the last message
+    // that arrived say nothing during an outage, so the space is spent on what
+    // is actually wrong. Blinked, like the recording dot: a rider who has
+    // stopped reading the bar still catches something moving at the edge of
+    // their eye. The words are short enough to leave the chips where they were.
+    const char* word = _gpsTier == 3 ? "NO RX" : "LOST";
+    _lcd->setTextColor((millis() / 600) % 2 ? C_BAD : C_DIM, C_BAR);
+    _lcd->drawString(word, 6, STATUS_H / 2);
+    x = max(60, 6 + (int)_lcd->textWidth(word) + 10);
+  } else {
+    int bars = !s.fix.valid ? 0 : s.fix.numSV >= 10 ? 4 : s.fix.numSV >= 8 ? 3 : s.fix.numSV >= 6 ? 2 : 1;
+    // Amber bars with a full house of satellites: they are up there, the fix
+    // they produce is not one the navigation would work with.
+    uint16_t barCol = _gpsTier ? C_WARN : C_GOOD;
+    for (int i = 0; i < 4; i++) {
+      int h = 4 + i * 4;
+      _lcd->fillRect(6 + i * 6, STATUS_H - 4 - h, 4, h, i < bars ? barCol : C_LINE);
+    }
+    char sv[8]; snprintf(sv, sizeof(sv), "%u", s.fix.numSV);
+    _lcd->setTextColor(_gpsTier ? C_WARN : (s.fix.valid ? C_FG : C_DIM), C_BAR);
+    _lcd->drawString(sv, 34, STATUS_H / 2);
   }
-  _lcd->setTextColor(s.fix.valid ? C_FG : C_DIM, C_BAR);
-  char sv[8]; snprintf(sv, sizeof(sv), "%u", s.fix.numSV);
-  _lcd->drawString(sv, 34, STATUS_H / 2);
 
   // sensor chips
-  int x = 60;
   auto chip = [&](const char* t, bool on, uint16_t onCol) {
     _lcd->setTextColor(on ? onCol : C_LINE, C_BAR);
     _lcd->drawString(t, x, STATUS_H / 2);
@@ -3702,6 +3720,18 @@ void Ui::drawStatus() {
            s.fix.valid ? "3D FIX" : (s.fix.fixType == 2 ? "2D" : "no fix"),
            s.fix.numSV, S.distShort(s.fix.hAcc), S.distShortUnit(), s.fix.pDOP);
   row("GPS", b, s.fix.valid ? C_GOOD : C_WARN);
+
+  // How long this has been going on, which is the one thing the fix itself
+  // cannot tell you: a dropout ten seconds old and one ten minutes old look
+  // identical in every field above.
+  char dur[16];
+  fmtTime((uint32_t)_gpsOutS * 1000UL, dur, sizeof(dur));
+  if (_gpsTier == 3)      snprintf(b, sizeof(b), "receiver silent for %s - check the wiring", dur);
+  else if (_gpsTier == 2) snprintf(b, sizeof(b), "no fix for %s", dur);
+  else if (_gpsTier == 1) snprintf(b, sizeof(b), "too loose to navigate on for %s", dur);
+  else if (_gpsOutS)      snprintf(b, sizeof(b), "steady - last dropout lasted %s", dur);
+  else                    snprintf(b, sizeof(b), "steady - no dropouts since boot");
+  row("Signal", b, _gpsTier >= 2 ? C_BAD : _gpsTier ? C_WARN : C_GOOD);
 
   snprintf(b, sizeof(b), "%.6f, %.6f", s.fix.lat, s.fix.lon);
   row("Position", s.fix.valid ? b : "-", C_FG);
