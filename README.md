@@ -59,9 +59,9 @@ power vanishes without warning, the ride is **picked up again at the next boot**
 **Phone link** — BLE GATT server exposing Nordic UART, Battery and Device Information
 services. Streams live telemetry as JSON, accepts start/stop/lap/save commands, sets the
 clock, and shows incoming-call or message banners pushed from the phone. Off-course and
-GPS-dropout warnings are pushed the other way, so the phone shows what the head unit does. A ready-made
-[Web Bluetooth companion page](companion/index.html) is included — open it in Chrome on
-Android and press Connect; no app install, no build step.
+GPS-dropout warnings are pushed the other way, so the phone shows what the head unit
+does. A ready-made [Web Bluetooth companion page](companion/index.html) is included —
+open it in Chrome on Android and press Connect; no app install, no build step.
 
 **Wind and weather** — the head unit has no internet, so the companion fetches a forecast
 for wherever the GPS says you are and pushes it down the BLE link. You get current
