@@ -1,0 +1,70 @@
+name: host tests
+
+# The suite compiles the real firmware sources against the Arduino shims in
+# tools/course-test/shim and asserts on the results, so it needs no hardware -
+# which is exactly what makes it worth running on every push.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    name: tools/course-test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # zig ships a self-contained clang, and it is the compiler the suite is
+      # documented against. Using it here rather than the runner's gcc means CI
+      # builds the same way a developer does, so a red run is a real failure and
+      # not a toolchain difference.
+      - name: Install zig
+        run: pip install ziglang
+
+      # The GPX fixtures are generated rather than committed - .gitignore keeps
+      # *.gpx out, and 20 001 points of test course has no business in history.
+      - name: Generate the GPX fixtures
+        run: python tools/course-test/gen_gpx.py
+
+      - name: Build and run every host test
+        run: |
+          set -euo pipefail
+
+          flags=(-std=c++17 -O1 -w -nostdinc++ -nostdlib++ -fno-exceptions -fno-rtti
+                 -fno-threadsafe-statics -I tools/course-test/shim -I include -I src)
+
+          # Each test returns the number of failures as its exit status, so the
+          # step fails on the first suite that breaks.
+          host_test() {
+            local name=$1; shift
+            echo "::group::$name"
+            python -m ziglang c++ "${flags[@]}" \
+              -o "tools/course-test/$name" "tools/course-test/$name.cpp" "$@"
+            # test_course reads its fixtures from the working directory.
+            ( cd tools/course-test && "./$name" )
+            echo "::endgroup::"
+          }
+
+          host_test test_course      src/nav/Course.cpp
+          host_test test_geo         src/nav/Geo.cpp
+          host_test test_weather     src/sensors/Weather.cpp
+          host_test test_envhistory  src/sensors/EnvHistory.cpp
+          host_test test_settings    src/Settings.cpp
+          host_test test_laps        src/ride/RideComputer.cpp src/nav/Geo.cpp src/Settings.cpp
+          host_test test_workout     src/ride/Workout.cpp src/Settings.cpp
+          host_test test_load        src/ride/TrainingLoad.cpp
+          host_test test_zones       src/ride/Zones.cpp
+          host_test test_profile     src/ride/ElevationProfile.cpp
+          host_test test_drivetrain  src/ride/Drivetrain.cpp
+          host_test test_checkpoint  src/ride/RideCheckpoint.cpp src/ride/FitEncoder.cpp \
+                                     src/ride/ElevationProfile.cpp src/Settings.cpp
+          host_test test_battery     src/power/BatteryWarn.cpp
+          host_test test_gpsfix      src/gps/GpsWarn.cpp
