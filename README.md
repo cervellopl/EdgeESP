@@ -10,9 +10,15 @@ Connects to your phone over BLE. Runs off an internal cell or external USB power
 pio run -t upload -t monitor
 ```
 
-Builds clean and flashes to 1.2 MB. **Read [HARDWARE.md](HARDWARE.md) before wiring
-anything** — the 5 V shield needs a level-shifting decision, and the ESP32-S3 module
-variant matters.
+Builds clean and flashes to 1.25 MiB — 42 % of the 3 MiB OTA app partition, so updates
+over Wi-Fi fit. **Read [HARDWARE.md](HARDWARE.md) before wiring anything** — the 5 V
+shield needs a level-shifting decision, and the ESP32-S3 module variant matters.
+
+![EdgeESP connection diagram](docs/wiring.svg)
+
+Every number on the diagram comes from [`include/config.h`](include/config.h) — change
+them there, not in the source. The reasoning behind each choice, the button-ladder
+thresholds and the bill of materials are in [HARDWARE.md](HARDWARE.md).
 
 ---
 
@@ -759,6 +765,7 @@ src/ui/Beeper           non-blocking piezo patterns
 src/link/PhoneLink      BLE GATT server, telemetry + command protocol
 src/link/WebPortal      Wi-Fi file browser, GPX upload and OTA
 companion/index.html    Web Bluetooth companion page
+docs/wiring.svg         connection diagram - the pin map as a picture
 tools/course-test/      host-side test suite for the GPX parser
 ```
 

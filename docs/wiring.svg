@@ -1,0 +1,278 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1560 1120" width="1560" height="1120" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <title>EdgeESP connection diagram</title>
+  <desc>Block wiring diagram for the EdgeESP bike computer: ESP32-S3 to MCUFRIEND 3.6 inch TFT shield, microSD, u-blox GPS, I2C sensors, button ladder, battery sense and the power chain.</desc>
+
+  <style>
+    .box   { fill: #ffffff; stroke: #ccd2dd; stroke-width: 1.5; }
+    .hdr   { font-size: 14px; font-weight: 700; fill: #1f2733; }
+    .body  { font-size: 12px; fill: #3d4757; }
+    .dim   { font-size: 11px; fill: #7b8494; }
+    .mono  { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 12px; fill: #1f2733; }
+    .monos { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 11px; fill: #5c6675; }
+    .wlbl  { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 11px; fill: #5c6675; }
+    .w     { fill: none; stroke-width: 2.5; }
+    .warn  { font-size: 11px; fill: #b45309; }
+  </style>
+
+  <rect width="1560" height="1120" fill="#fbfbfd"/>
+
+  <!-- ── header ───────────────────────────────────────────────────────── -->
+  <text x="40" y="48" font-size="26" font-weight="700" fill="#1f2733">EdgeESP — connection diagram</text>
+  <text x="40" y="74" class="body" fill="#5b6270">Every number is an ESP32-S3 GPIO and comes from <tspan class="mono" font-size="12">include/config.h</tspan>. Shield revisions differ — buzz out the LCD header against the panel flex before soldering.</text>
+
+  <!-- ══ POWER CHAIN ══════════════════════════════════════════════════ -->
+  <rect x="40" y="110" width="340" height="56" rx="7" class="box"/>
+  <text x="58" y="134" class="hdr">USB-C breakout</text>
+  <text x="58" y="153" class="dim">charge in + serial console (native USB)</text>
+
+  <path d="M210 166 L210 190" class="w" stroke="#4b5563" marker-end="url(#arrow)"/>
+
+  <rect x="40" y="190" width="340" height="70" rx="7" class="box"/>
+  <text x="58" y="214" class="hdr">Charger with power path</text>
+  <text x="58" y="233" class="body">MCP73871 · IP5306 · TP4056 + ideal diode</text>
+  <text x="58" y="251" class="dim">power path matters: run-while-charging</text>
+
+  <path d="M210 260 L210 284" class="w" stroke="#4b5563" marker-end="url(#arrow)"/>
+
+  <rect x="40" y="284" width="340" height="56" rx="7" class="box"/>
+  <text x="58" y="308" class="hdr">Li-ion cell, 1S</text>
+  <text x="58" y="327" class="dim">18650 3400 mAh or a pouch — protected</text>
+
+  <path d="M210 340 L210 364" class="w" stroke="#4b5563" marker-end="url(#arrow)"/>
+
+  <rect x="40" y="364" width="340" height="70" rx="7" class="box"/>
+  <text x="58" y="388" class="hdr">TPS63020 buck-boost → 3V3</text>
+  <text x="58" y="407" class="body">holds 3.3 V across the whole 3.0–4.2 V cell</text>
+  <text x="58" y="425" class="dim">an LDO would throw away a third of the pack</text>
+
+  <!-- battery sense -->
+  <rect x="40" y="462" width="340" height="132" rx="7" class="box"/>
+  <text x="58" y="486" class="hdr">Battery sense</text>
+  <text x="66" y="524" class="monos">CELL +</text>
+  <path d="M112 520 L136 520" class="w" stroke="#db2777"/>
+  <rect x="136" y="513" width="42" height="14" fill="#fff" stroke="#db2777" stroke-width="2"/>
+  <text x="157" y="506" class="monos" text-anchor="middle" fill="#db2777">100k</text>
+  <path d="M178 520 L246 520" class="w" stroke="#db2777"/>
+  <rect x="246" y="513" width="42" height="14" fill="#fff" stroke="#db2777" stroke-width="2"/>
+  <text x="267" y="506" class="monos" text-anchor="middle" fill="#db2777">100k</text>
+  <path d="M288 520 L324 520" class="w" stroke="#4b5563"/>
+  <path d="M316 520 L332 520 M319 526 L329 526 M322 532 L326 532" stroke="#4b5563" stroke-width="2" fill="none"/>
+  <circle cx="212" cy="520" r="4" fill="#db2777"/>
+  <path d="M212 520 L212 556 L520 556" class="w" stroke="#db2777"/>
+  <text x="222" y="550" class="monos" fill="#db2777">GPIO3  ADC1</text>
+  <text x="58" y="582" class="dim">100 nF from the divider node to GND</text>
+
+  <!-- buzzer -->
+  <rect x="40" y="616" width="340" height="86" rx="7" class="box"/>
+  <text x="58" y="640" class="hdr">Buzzer</text>
+  <text x="58" y="662" class="mono">GPIO0 → piezo → GND</text>
+  <text x="58" y="683" class="dim">shares the BOOT pad; set −1 in config.h to disable</text>
+  <path d="M380 662 L440 662 L440 632 L520 632" class="w" stroke="#0891b2"/>
+
+  <!-- ══ MCU ══════════════════════════════════════════════════════════ -->
+  <rect x="520" y="110" width="300" height="620" rx="10" fill="#1f2733" stroke="#0f1520" stroke-width="1.5"/>
+  <text x="670" y="146" font-size="18" font-weight="700" fill="#ffffff" text-anchor="middle">ESP32-S3-WROOM-1</text>
+  <text x="670" y="168" font-size="12" fill="#9aa4b2" text-anchor="middle">N8 / N16R2 — quad PSRAM</text>
+  <text x="670" y="188" font-size="11" fill="#fbbf24" text-anchor="middle">not N16R8: octal PSRAM eats GPIO33–37</text>
+  <line x1="540" y1="204" x2="800" y2="204" stroke="#39414f" stroke-width="1"/>
+
+  <!-- left ports -->
+  <text x="536" y="256" font-family="ui-monospace, Consolas, monospace" font-size="12" fill="#fca5a5">3V3 · GND</text>
+  <circle cx="520" cy="252" r="5" fill="#dc2626"/>
+  <text x="536" y="556" font-family="ui-monospace, Consolas, monospace" font-size="12" fill="#f9a8d4">GPIO3   battery</text>
+  <circle cx="520" cy="556" r="5" fill="#db2777"/>
+  <text x="536" y="636" font-family="ui-monospace, Consolas, monospace" font-size="12" fill="#a5f3fc">GPIO0   buzzer</text>
+  <circle cx="520" cy="632" r="5" fill="#0891b2"/>
+
+  <!-- right ports -->
+  <text x="804" y="256" font-family="ui-monospace, Consolas, monospace" font-size="12" fill="#93c5fd" text-anchor="end">LCD 8080 bus  /21</text>
+  <circle cx="820" cy="270" r="5" fill="#2563eb"/>
+  <text x="804" y="396" font-family="ui-monospace, Consolas, monospace" font-size="12" fill="#c4b5fd" text-anchor="end">microSD  SPI  /4</text>
+  <circle cx="820" cy="410" r="5" fill="#7c3aed"/>
+  <text x="804" y="486" font-family="ui-monospace, Consolas, monospace" font-size="12" fill="#6ee7b7" text-anchor="end">GPS  UART1  /3</text>
+  <circle cx="820" cy="500" r="5" fill="#059669"/>
+  <text x="804" y="576" font-family="ui-monospace, Consolas, monospace" font-size="12" fill="#fcd34d" text-anchor="end">I²C  /2</text>
+  <circle cx="820" cy="590" r="5" fill="#d97706"/>
+
+  <!-- bottom port -->
+  <text x="670" y="700" font-family="ui-monospace, Consolas, monospace" font-size="12" fill="#f9a8d4" text-anchor="middle">GPIO4  button ladder</text>
+  <circle cx="700" cy="730" r="5" fill="#db2777"/>
+  <text x="536" y="716" font-size="11" fill="#8b95a5">GPIO45 / 46 spare — strapping, leave free</text>
+
+  <!-- 3V3 rail into the MCU -->
+  <path d="M380 399 L450 399 L450 252 L520 252" class="w" stroke="#dc2626" stroke-width="3.5"/>
+  <text x="458" y="244" class="wlbl" fill="#dc2626">3V3</text>
+
+  <!-- ══ PERIPHERALS ══════════════════════════════════════════════════ -->
+  <!-- LCD shield -->
+  <rect x="900" y="110" width="620" height="320" rx="7" class="box"/>
+  <rect x="900" y="110" width="620" height="34" rx="7" fill="#eff4ff"/>
+  <rect x="900" y="132" width="620" height="12" fill="#eff4ff"/>
+  <text x="918" y="133" class="hdr" fill="#1d4ed8">MCUFRIEND 3.6″ TFTLCD shield — 480×320, 16-bit 8080</text>
+  <text x="918" y="172" class="body" font-weight="600">Data bus</text>
+  <text x="918" y="194" class="mono">LCD_D0–D7</text>
+  <text x="1050" y="194" class="mono" fill="#1d4ed8">9 · 10 · 11 · 12 · 13 · 14 · 15 · 16</text>
+  <text x="1370" y="194" class="monos">shield D22–D29</text>
+  <text x="918" y="216" class="mono">LCD_D8–D15</text>
+  <text x="1050" y="216" class="mono" fill="#1d4ed8">17 · 18 · 21 · 33 · 34 · 35 · 36 · 37</text>
+  <text x="1370" y="216" class="monos">shield D30–D37</text>
+  <line x1="918" y1="234" x2="1502" y2="234" stroke="#e6eaf2"/>
+  <text x="918" y="258" class="body" font-weight="600">Control</text>
+  <text x="1050" y="258" class="mono" fill="#1d4ed8">WR 8 · RD 47 · RS 7 · CS 6 · RST 5</text>
+  <text x="918" y="282" class="body" font-weight="600">Backlight</text>
+  <text x="1050" y="282" class="mono" fill="#0891b2">GPIO48 — LEDC PWM ch 7</text>
+  <text x="918" y="306" class="body" font-weight="600">Power</text>
+  <text x="1050" y="306" class="mono" fill="#dc2626">3V3 pin + GND</text>
+  <text x="1250" y="306" class="dim">leave the shield's 5 V pin unconnected</text>
+  <line x1="918" y1="324" x2="1502" y2="324" stroke="#e6eaf2"/>
+  <text x="918" y="348" class="warn">⚠ Level shifting: measure RP1–RP11 with the shield unpowered.</text>
+  <text x="918" y="368" class="dim">Series resistors only (~33–100 Ω, no leg to GND) → drive straight from 3.3 V logic.</text>
+  <text x="918" y="386" class="dim">A divider (~1–10 kΩ plus a pull-down) lands ~2.2 V at the panel — bypass the lower leg,</text>
+  <text x="918" y="404" class="dim">or buffer the 21 lines through 74LVC245s. If pixels come out garbled, try 10 MHz first.</text>
+  <text x="918" y="422" class="dim">21 GPIOs are gone before anything else is wired — that is why this is an S3.</text>
+
+  <!-- microSD -->
+  <rect x="900" y="450" width="620" height="110" rx="7" class="box"/>
+  <rect x="900" y="450" width="620" height="34" rx="7" fill="#f5f1ff"/>
+  <rect x="900" y="472" width="620" height="12" fill="#f5f1ff"/>
+  <text x="918" y="473" class="hdr" fill="#6d28d9">microSD — the shield's own slot (JP4), SPI</text>
+  <text x="918" y="512" class="mono">SCK 39</text>
+  <text x="1030" y="512" class="mono">MISO 40</text>
+  <text x="1150" y="512" class="mono">MOSI 41</text>
+  <text x="1270" y="512" class="mono">CS 38</text>
+  <text x="918" y="538" class="dim">shield pins D52 / D50 / D51 / D53 · Class 10, ≤32 GB, FAT32</text>
+
+  <!-- GPS -->
+  <rect x="900" y="580" width="620" height="150" rx="7" class="box"/>
+  <rect x="900" y="580" width="620" height="34" rx="7" fill="#effaf4"/>
+  <rect x="900" y="602" width="620" height="12" fill="#effaf4"/>
+  <text x="918" y="603" class="hdr" fill="#047857">u-blox NEO-M8N / M9N / MAX-M10S — UART1, UBX only</text>
+  <text x="918" y="642" class="mono">GPIO1</text>
+  <text x="990" y="642" class="mono" fill="#047857">←  module TX</text>
+  <text x="1180" y="642" class="dim">NMEA off, one NAV-PVT at 5 Hz</text>
+  <text x="918" y="666" class="mono">GPIO2</text>
+  <text x="990" y="666" class="mono" fill="#047857">→  module RX</text>
+  <text x="1180" y="666" class="dim">baud auto-detected, then configured</text>
+  <text x="918" y="690" class="mono">GPIO42</text>
+  <text x="990" y="690" class="mono" fill="#047857">←  1PPS</text>
+  <text x="1180" y="690" class="dim">optional; −1 disables</text>
+  <text x="918" y="714" class="dim">3V3 + GND. Antenna at the top with a ground plane, away from the panel ribbon and the regulator.</text>
+
+  <!-- I2C -->
+  <rect x="900" y="750" width="620" height="146" rx="7" class="box"/>
+  <rect x="900" y="750" width="620" height="34" rx="7" fill="#fff7ed"/>
+  <rect x="900" y="772" width="620" height="12" fill="#fff7ed"/>
+  <text x="918" y="773" class="hdr" fill="#b45309">I²C bus — SDA GPIO43 · SCL GPIO44</text>
+  <text x="918" y="812" class="mono">BME280</text>
+  <text x="1030" y="812" class="mono" fill="#b45309">0x76</text>
+  <text x="1110" y="812" class="body">barometric altitude, ascent, temperature</text>
+  <text x="918" y="836" class="mono">QMC5883L</text>
+  <text x="1030" y="836" class="mono" fill="#b45309">0x0D</text>
+  <text x="1110" y="836" class="body">optional compass — the only heading at a standstill</text>
+  <text x="918" y="860" class="mono">HMC5883L</text>
+  <text x="1030" y="860" class="mono" fill="#b45309">0x1E</text>
+  <text x="1110" y="860" class="dim">the GY-271 silkscreen usually lies; both are detected</text>
+  <text x="918" y="880" class="dim">43 and 44 are free only because the console runs on native USB.</text>
+
+  <!-- ══ WIRES: MCU → peripherals ═════════════════════════════════════ -->
+  <path d="M820 270 L900 270" class="w" stroke="#2563eb" stroke-width="4"/>
+  <path d="M846 258 L858 282" stroke="#2563eb" stroke-width="2"/>
+  <text x="852" y="252" class="wlbl" fill="#2563eb" text-anchor="middle">21</text>
+
+  <path d="M820 410 L860 410 L860 505 L900 505" class="w" stroke="#7c3aed"/>
+  <path d="M854 398 L866 422" stroke="#7c3aed" stroke-width="2"/>
+  <text x="846" y="392" class="wlbl" fill="#7c3aed" text-anchor="middle">4</text>
+
+  <path d="M820 500 L850 500 L850 655 L900 655" class="w" stroke="#059669"/>
+  <path d="M844 488 L856 512" stroke="#059669" stroke-width="2"/>
+  <text x="836" y="482" class="wlbl" fill="#059669" text-anchor="middle">3</text>
+
+  <path d="M820 590 L840 590 L840 820 L900 820" class="w" stroke="#d97706"/>
+  <path d="M834 578 L846 602" stroke="#d97706" stroke-width="2"/>
+  <text x="826" y="572" class="wlbl" fill="#d97706" text-anchor="middle">2</text>
+
+  <!-- ══ BUTTON LADDER ═══════════════════════════════════════════════ -->
+  <rect x="40" y="760" width="800" height="320" rx="7" class="box"/>
+  <rect x="40" y="760" width="800" height="34" rx="7" fill="#fdf2f8"/>
+  <rect x="40" y="782" width="800" height="12" fill="#fdf2f8"/>
+  <text x="58" y="783" class="hdr" fill="#be185d">Button ladder — five buttons, one ADC pin</text>
+  <text x="58" y="818" class="dim">Five spare GPIOs do not exist after the bus is wired. The ladder is also the deep-sleep wake source.</text>
+
+  <text x="58" y="866" class="mono" fill="#dc2626">3V3</text>
+  <path d="M92 862 L128 862" class="w" stroke="#db2777"/>
+  <rect x="128" y="855" width="44" height="14" fill="#fff" stroke="#db2777" stroke-width="2"/>
+  <text x="150" y="848" class="monos" text-anchor="middle" fill="#db2777">10k</text>
+  <path d="M172 862 L790 862" class="w" stroke="#db2777"/>
+  <circle cx="700" cy="862" r="4" fill="#db2777"/>
+
+  <!-- tap up to the MCU -->
+  <path d="M700 862 L700 730" class="w" stroke="#db2777"/>
+  <text x="712" y="800" class="monos" fill="#db2777">GPIO4  ADC1 · wake</text>
+
+  <!-- five branches -->
+  <g stroke="#db2777" stroke-width="2.5" fill="none">
+    <path d="M230 862 L230 892"/><path d="M230 916 L230 940"/><path d="M230 968 L230 1000"/>
+    <path d="M330 862 L330 892"/><path d="M330 916 L330 940"/><path d="M330 968 L330 1000"/>
+    <path d="M430 862 L430 892"/><path d="M430 916 L430 940"/><path d="M430 968 L430 1000"/>
+    <path d="M530 862 L530 892"/><path d="M530 916 L530 940"/><path d="M530 968 L530 1000"/>
+    <path d="M630 862 L630 892"/><path d="M630 916 L630 940"/><path d="M630 968 L630 1000"/>
+  </g>
+  <!-- switch blades -->
+  <g stroke="#be185d" stroke-width="2.5" fill="#be185d">
+    <circle cx="230" cy="892" r="3"/><circle cx="230" cy="916" r="3"/><path d="M230 892 L246 914" fill="none"/>
+    <circle cx="330" cy="892" r="3"/><circle cx="330" cy="916" r="3"/><path d="M330 892 L346 914" fill="none"/>
+    <circle cx="430" cy="892" r="3"/><circle cx="430" cy="916" r="3"/><path d="M430 892 L446 914" fill="none"/>
+    <circle cx="530" cy="892" r="3"/><circle cx="530" cy="916" r="3"/><path d="M530 892 L546 914" fill="none"/>
+    <circle cx="630" cy="892" r="3"/><circle cx="630" cy="916" r="3"/><path d="M630 892 L646 914" fill="none"/>
+  </g>
+  <!-- resistors -->
+  <g fill="#fff" stroke="#db2777" stroke-width="2">
+    <rect x="209" y="940" width="42" height="28"/><rect x="309" y="940" width="42" height="28"/>
+    <rect x="409" y="940" width="42" height="28"/><rect x="509" y="940" width="42" height="28"/>
+    <rect x="609" y="940" width="42" height="28"/>
+  </g>
+  <g class="monos" text-anchor="middle" fill="#1f2733" font-size="11">
+    <text x="230" y="958">0R</text><text x="330" y="958">1k0</text><text x="430" y="958">2k2</text>
+    <text x="530" y="958">4k7</text><text x="630" y="958">10k</text>
+  </g>
+  <g class="mono" text-anchor="middle" font-size="12" font-weight="600">
+    <text x="230" y="886" fill="#be185d">LAP</text><text x="330" y="886" fill="#be185d">DOWN</text>
+    <text x="430" y="886" fill="#be185d">UP</text><text x="530" y="886" fill="#be185d">ENTER</text>
+    <text x="630" y="886" fill="#be185d">BACK</text>
+  </g>
+  <g class="monos" text-anchor="middle" fill="#7b8494">
+    <text x="230" y="1022">0 mV</text><text x="330" y="1022">300 mV</text><text x="430" y="1022">595 mV</text>
+    <text x="530" y="1022">1055 mV</text><text x="630" y="1022">1650 mV</text>
+  </g>
+  <!-- 100 nF -->
+  <path d="M760 862 L760 946 M746 946 L774 946 M746 956 L774 956 M760 956 L760 1000" stroke="#db2777" stroke-width="2.5" fill="none"/>
+  <text x="782" y="912" class="monos" fill="#db2777">100 nF</text>
+  <!-- GND rail -->
+  <path d="M170 1000 L790 1000" class="w" stroke="#4b5563" stroke-width="3"/>
+  <path d="M180 1000 L180 1014 M166 1014 L194 1014 M171 1020 L189 1020 M176 1026 L184 1026" stroke="#4b5563" stroke-width="2.5" fill="none"/>
+  <text x="58" y="1050" class="dim">Idle reads ≈3300 mV. Thresholds live in src/input/Buttons.cpp — if your resistors are E24 rather than E12,</text>
+  <text x="58" y="1068" class="dim">print analogReadMilliVolts() and move them.</text>
+
+  <!-- ══ LEGEND ═══════════════════════════════════════════════════════ -->
+  <rect x="900" y="916" width="620" height="164" rx="7" class="box"/>
+  <text x="918" y="944" class="hdr">Legend</text>
+  <g stroke-width="3.5" fill="none">
+    <path d="M918 964 L954 964" stroke="#2563eb"/><path d="M918 988 L954 988" stroke="#7c3aed"/>
+    <path d="M918 1012 L954 1012" stroke="#059669"/><path d="M918 1036 L954 1036" stroke="#d97706"/>
+    <path d="M1180 964 L1216 964" stroke="#db2777"/><path d="M1180 988 L1216 988" stroke="#0891b2"/>
+    <path d="M1180 1012 L1216 1012" stroke="#dc2626"/><path d="M1180 1036 L1216 1036" stroke="#4b5563"/>
+  </g>
+  <g class="body">
+    <text x="964" y="968">16-bit 8080 parallel</text><text x="964" y="992">SPI</text>
+    <text x="964" y="1016">UART</text><text x="964" y="1040">I²C</text>
+    <text x="1226" y="968">analog / ADC</text><text x="1226" y="992">PWM</text>
+    <text x="1226" y="1016">3V3</text><text x="1226" y="1040">GND</text>
+  </g>
+  <text x="918" y="1068" class="dim">A slash and a number on a wire is the conductor count. Every module runs off the same 3.3 V rail with a common ground.</text>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#4b5563"/>
+    </marker>
+  </defs>
+</svg>

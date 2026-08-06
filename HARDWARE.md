@@ -63,6 +63,8 @@ on-board AMS1117.
 
 ## Pin map
 
+![EdgeESP connection diagram](docs/wiring.svg)
+
 All of these live in `include/config.h`; change them there, not in the source.
 
 ### LCD 16-bit bus
