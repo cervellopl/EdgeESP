@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EdgeESP companion</title>
+<style>
+  :root { color-scheme: dark; }
+  body { font: 15px/1.4 system-ui, sans-serif; margin: 0; background: #0e0e0e; color: #eee; }
+  header { padding: 14px 16px; background: #191919; border-bottom: 1px solid #2c2c2c;
+           display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 16px; margin: 0; flex: 1; }
+  button { font: inherit; padding: 8px 14px; border-radius: 6px; border: 1px solid #3a3a3a;
+           background: #232323; color: #eee; cursor: pointer; }
+  button.primary { background: #fd7e14; border-color: #fd7e14; color: #111; font-weight: 600; }
+  button:disabled { opacity: .4; cursor: default; }
+  main { padding: 16px; max-width: 760px; margin: auto; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+  .card { background: #191919; border: 1px solid #2c2c2c; border-radius: 10px; padding: 12px 14px; }
+  .card span { display: block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #888; }
+  .card b { display: block; font-size: 30px; font-weight: 600; color: #fd7e14; font-variant-numeric: tabular-nums; }
+  .card i { font-style: normal; font-size: 12px; color: #666; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0; }
+  #log { white-space: pre-wrap; font: 12px ui-monospace, monospace; color: #7a7a7a;
+         background: #141414; border: 1px solid #262626; border-radius: 8px; padding: 10px;
+         max-height: 160px; overflow: auto; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #555; }
+  .dot.on { background: #2ecc71; }
+  .note { color: #888; font-size: 13px; }
+</style>
+
+<header>
+  <div class="dot" id="dot"></div>
+  <h1>EdgeESP companion</h1>
+  <button class="primary" id="connect">Connect</button>
+</header>
+
+<main>
+  <div id="offcourse" style="display:none;background:#c0392b;color:#fff;padding:12px 14px;
+       border-radius:8px;margin-bottom:14px;font-weight:600"></div>
+  <div id="cname" style="color:#888;font-size:13px;margin-bottom:10px"></div>
+  <div class="grid" id="grid"></div>
+
+  <div class="card" id="wxcard" style="margin:16px 0;display:none">
+    <span>Weather pushed to the device</span>
+    <div id="wxline" style="font-size:15px;color:#eee;margin-top:6px"></div>
+    <div id="wxwhen" style="font-size:12px;color:#666;margin-top:4px"></div>
+  </div>
+
+  <div class="row">
+    <button id="wxnow">Refresh weather</button>
+    <button data-cmd="START">Start / resume</button>
+    <button data-cmd="STOP">Pause</button>
+    <button data-cmd="LAP">Lap</button>
+    <button data-cmd="SAVE">Save ride</button>
+    <button data-cmd="DISCARD">Discard</button>
+    <button data-cmd="PAIR">Pair sensors</button>
+    <button data-cmd="WIFI">Toggle Wi-Fi</button>
+    <button id="sync">Sync clock</button>
+    <button id="testnotif">Send test notification</button>
+  </div>
+
+  <p class="note">
+    Web Bluetooth works in Chrome and Edge on Android, Windows, macOS and Linux.
+    iOS needs a browser with Web Bluetooth support (for example Bluefy), or a native app.
+  </p>
+  <p class="note">
+    Weather comes from <a href="https://open-meteo.com">open-meteo.com</a> — no account or
+    API key needed. Fetching it <strong>sends your coordinates to that service</strong>,
+    taken from the device's GPS, or from this browser if there is no fix yet. Nothing else
+    leaves this page. If you would rather not, simply do not press Refresh weather; every
+    other feature works without it.
+  </p>
+
+  <div id="log">not connected</div>
+</main>
+
+<script>
+const NUS = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+const RX  = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';   // we write here
+const TX  = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';   // device notifies here
+
+const FIELDS = [
+  ['crem', 'To go',    'km',   v => (v / 1000).toFixed(1)],
+  ['cclimb','Climb left','m',  v => Math.round(v)],
+  ['cx',   'Off route','m',    v => Math.round(v)],
+  ['v',    'Speed',    'km/h', v => v.toFixed(1)],
+  ['d',    'Distance', 'km',   v => (v / 1000).toFixed(2)],
+  ['t',    'Timer',    '',     v => fmt(v)],
+  ['alt',  'Elevation','m',    v => Math.round(v)],
+  ['asc',  'Ascent',   'm',    v => Math.round(v)],
+  ['hr',   'Heart',    'bpm',  v => v || '--'],
+  ['cad',  'Cadence',  'rpm',  v => v || '--'],
+  ['pw',   'Power',    'W',    v => v || '--'],
+  ['g',    'Grade',    '%',    v => v.toFixed(1)],
+  ['kcal', 'Calories', 'kcal', v => Math.round(v)],
+  ['sat',  'Satellites','',    v => v],
+  ['bat',  'Battery',  '%',    v => v],
+];
+const STATUS = ['Idle', 'Running', 'Auto-paused', 'Paused', 'Stopped'];
+
+let rxChar = null, buffer = '';
+const $ = id => document.getElementById(id);
+const log = m => { $('log').textContent = (m + '\n' + $('log').textContent).slice(0, 4000); };
+
+function fmt(sec) {
+  const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
+  return h ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+           : `${m}:${String(s).padStart(2,'0')}`;
+}
+
+$('grid').innerHTML = FIELDS.map(([k, label, unit]) =>
+  `<div class="card"><span>${label}</span><b id="f_${k}">--</b><i>${unit}</i></div>`).join('');
+
+function render(s) {
+  for (const [k, , , f] of FIELDS) {
+    const el = $('f_' + k);
+    if (el && s[k] !== undefined) el.textContent = f(s[k]);
+  }
+  // Course frames arrive separately from ride frames, so only touch what is
+  // actually present in this object.
+  if (s.coff !== undefined) {
+    const banner = $('offcourse');
+    banner.style.display = s.coff ? 'block' : 'none';
+    banner.textContent = `OFF COURSE — ${Math.round(s.cx)} m from the route`;
+    if (s.cname) $('cname').textContent = `${s.cname} · ${s.cpct}%`;
+  }
+  if (s.st !== undefined) document.title = `${STATUS[s.st] || ''} - EdgeESP`;
+  // The device's own fix is the best position we have for a forecast.
+  if (s.lat && s.lon) lastPos = { lat: s.lat, lon: s.lon };
+}
+
+// Telemetry arrives as newline-delimited JSON, one object per notification,
+// but BLE can split a write so we reassemble on newlines.
+function onData(ev) {
+  buffer += new TextDecoder().decode(ev.target.value);
+  let i;
+  while ((i = buffer.indexOf('\n')) >= 0) {
+    const line = buffer.slice(0, i).trim();
+    buffer = buffer.slice(i + 1);
+    if (!line) continue;
+    try { render(JSON.parse(line)); } catch (e) { log(line); }
+  }
+}
+
+// Writes are serialised through one promise chain: pushing a forecast is a
+// dozen back-to-back writes, and overlapping them upsets some BLE stacks.
+let writeChain = Promise.resolve();
+function send(text) {
+  if (!rxChar) { log('not connected'); return Promise.resolve(); }
+  writeChain = writeChain.then(async () => {
+    const bytes = new TextEncoder().encode(text);
+    const c = rxChar;
+    if (c.writeValueWithResponse) await c.writeValueWithResponse(bytes);
+    else await c.writeValue(bytes);
+    await new Promise(r => setTimeout(r, 25));
+  }).catch(e => log('write failed: ' + e.message));
+  return writeChain;
+}
+
+// ---------------------------------------------------------------- weather
+let lastPos = null, lastWxAt = 0, lastWxPos = null;
+
+function haversine(a, b, c, d) {
+  const R = 6371008.8, rad = x => x * Math.PI / 180;
+  const dLat = rad(c - a), dLon = rad(d - b);
+  const h = Math.sin(dLat / 2) ** 2 +
+            Math.cos(rad(a)) * Math.cos(rad(c)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+function browserPosition() {
+  return new Promise((res, rej) => {
+    if (!navigator.geolocation) return rej(new Error('no geolocation'));
+    navigator.geolocation.getCurrentPosition(
+      p => res({ lat: p.coords.latitude, lon: p.coords.longitude }),
+      e => rej(e), { timeout: 8000 });
+  });
+}
+
+const WX_TEXT = {0:'Clear',1:'Mainly clear',2:'Partly cloudy',3:'Overcast',45:'Fog',48:'Fog',
+  51:'Drizzle',53:'Drizzle',55:'Drizzle',61:'Light rain',63:'Rain',65:'Heavy rain',
+  71:'Light snow',73:'Snow',75:'Heavy snow',80:'Light showers',81:'Showers',82:'Violent showers',
+  95:'Thunderstorm',96:'Storm with hail',99:'Storm with hail'};
+
+async function refreshWeather(force) {
+  if (!rxChar) return log('connect first');
+  let pos = lastPos;
+  if (!pos) {
+    try { pos = await browserPosition(); log('using this browser for position'); }
+    catch (e) { return log('no position available: ' + e.message); }
+  }
+  if (!force && lastWxAt && Date.now() - lastWxAt < 9 * 60000 &&
+      lastWxPos && haversine(pos.lat, pos.lon, lastWxPos.lat, lastWxPos.lon) < 20000) return;
+
+  const u = new URL('https://api.open-meteo.com/v1/forecast');
+  u.search = new URLSearchParams({
+    latitude: pos.lat.toFixed(4), longitude: pos.lon.toFixed(4),
+    current: 'temperature_2m,apparent_temperature,relative_humidity_2m,surface_pressure,' +
+             'wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,precipitation,weather_code',
+    hourly:  'temperature_2m,wind_speed_10m,wind_direction_10m,precipitation,' +
+             'precipitation_probability,weather_code',
+    daily: 'sunrise,sunset',
+    wind_speed_unit: 'ms', timeformat: 'unixtime', timezone: 'UTC', forecast_days: '2',
+  });
+
+  let j;
+  try { j = await (await fetch(u)).json(); }
+  catch (e) { return log('weather fetch failed: ' + e.message); }
+
+  const c = j.current || {}, h = j.hourly || {}, d = j.daily || {};
+  const code = c.weather_code;
+  const parts = [];
+  const put = (k, v, dp) => { if (v !== undefined && v !== null) parts.push(`${k}=${(+v).toFixed(dp)}`); };
+  put('t',  c.temperature_2m, 1);
+  put('f',  c.apparent_temperature, 1);
+  put('h',  c.relative_humidity_2m, 0);
+  put('p',  c.surface_pressure, 0);
+  put('ws', c.wind_speed_10m, 1);
+  put('wd', c.wind_direction_10m, 0);
+  put('g',  c.wind_gusts_10m, 1);
+  put('c',  c.cloud_cover, 0);
+  put('pr', c.precipitation, 2);
+  put('code', code, 0);
+  if (d.sunrise) parts.push('sr=' + d.sunrise[0]);
+  if (d.sunset)  parts.push('ss=' + d.sunset[0]);
+  const desc = WX_TEXT[code] || '';
+  await send('WX ' + parts.join(' ') + (desc ? '|' + desc : ''));
+
+  // Hourly, starting from the hour we are actually in.
+  const nowSec = Math.floor(Date.now() / 1000);
+  let start = 0;
+  if (h.time) { while (start + 1 < h.time.length && h.time[start + 1] <= nowSec) start++; }
+  const slots = Math.min(12, (h.time || []).length - start);
+  for (let i = 0; i < slots; i++) {
+    const k = start + i, p = [];
+    const pv = (key, arr, dp) => {
+      if (arr && arr[k] !== undefined && arr[k] !== null) p.push(`${key}=${(+arr[k]).toFixed(dp)}`);
+    };
+    pv('t',  h.temperature_2m, 1);
+    pv('ws', h.wind_speed_10m, 1);
+    pv('wd', h.wind_direction_10m, 0);
+    pv('pr', h.precipitation, 2);
+    pv('pp', h.precipitation_probability, 0);
+    pv('code', h.weather_code, 0);
+    await send(`WXH ${i} ` + p.join(' '));
+  }
+
+  lastWxAt = Date.now();
+  lastWxPos = pos;
+  $('wxcard').style.display = 'block';
+  $('wxline').textContent =
+    `${desc || 'weather'} · ${(+c.temperature_2m).toFixed(0)} °C · ` +
+    `wind ${(c.wind_speed_10m * 3.6).toFixed(0)} km/h from ${Math.round(c.wind_direction_10m)}°`;
+  $('wxwhen').textContent =
+    `${slots} forecast hours sent · ${new Date().toLocaleTimeString()} · ` +
+    `${pos.lat.toFixed(3)}, ${pos.lon.toFixed(3)}`;
+  log(`weather pushed (${slots} hourly slots)`);
+}
+
+$('connect').onclick = async () => {
+  try {
+    const dev = await navigator.bluetooth.requestDevice({
+      filters: [{ services: [NUS] }],
+      optionalServices: [NUS, 'battery_service', 'device_information'],
+    });
+    dev.addEventListener('gattserverdisconnected', () => {
+      $('dot').classList.remove('on');
+      rxChar = null;
+      log('disconnected');
+    });
+    const server = await dev.gatt.connect();
+    const svc = await server.getPrimaryService(NUS);
+    rxChar = await svc.getCharacteristic(RX);
+    const tx = await svc.getCharacteristic(TX);
+    await tx.startNotifications();
+    tx.addEventListener('characteristicvaluechanged', onData);
+    $('dot').classList.add('on');
+    log('connected to ' + dev.name);
+    send('TIME ' + Math.floor(Date.now() / 1000));
+    // Give the first telemetry frame a moment to land, so the forecast is for
+    // where the bike is rather than where the phone thinks it is.
+    setTimeout(() => refreshWeather(true), 2500);
+  } catch (e) {
+    log('error: ' + e.message);
+  }
+};
+
+document.querySelectorAll('button[data-cmd]').forEach(b =>
+  b.onclick = () => send(b.dataset.cmd));
+$('sync').onclick = () => send('TIME ' + Math.floor(Date.now() / 1000));
+$('testnotif').onclick = () => send('NOTIFY Incoming call|Anna Kowalska');
+$('wxnow').onclick = () => refreshWeather(true);
+
+// Keep the head unit's forecast fresh while connected. The check is cheap; the
+// fetch inside it is skipped unless the data is old or the bike has moved.
+setInterval(() => { if (rxChar) refreshWeather(false); }, 60000);
+</script>
+</html>
