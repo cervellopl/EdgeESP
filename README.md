@@ -856,3 +856,13 @@ defaults. Everything else lives there permanently:
   it buys you a screen that is far easier to read.
 - **The 5 V shield needs a level-shifting decision.** See HARDWARE.md — it is the one
   thing that can stop this working entirely.
+
+---
+
+## License
+
+[MIT](LICENSE) — use it, change it, sell it; keep the copyright notice.
+
+The libraries it builds against carry their own permissive terms: LovyanGFX (FreeBSD),
+NimBLE-Arduino (Apache-2.0), and the Adafruit BME280 and Unified Sensor drivers (BSD).
+None of them is copyleft, so a derivative head unit can be licensed however you like.
