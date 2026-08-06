@@ -1,4 +1,0 @@
-name Run
-warmup time 0:10
-work time 0:20 power 200 250
-cooldown time 0:10
