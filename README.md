@@ -1,6 +1,7 @@
 # EdgeESP
 
 [![host tests](https://github.com/cervellopl/EdgeESP/actions/workflows/host-tests.yml/badge.svg)](https://github.com/cervellopl/EdgeESP/actions/workflows/host-tests.yml)
+[![firmware](https://github.com/cervellopl/EdgeESP/actions/workflows/firmware.yml/badge.svg)](https://github.com/cervellopl/EdgeESP/actions/workflows/firmware.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A GPS bike computer in the spirit of the Garmin Edge 520, built on an ESP32-S3, a u-blox
