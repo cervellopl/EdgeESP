@@ -80,6 +80,45 @@ zig c++ -target x86_64-windows-gnu -std=c++17 -O1 -w -nostdinc++ -nostdlib++ -fn
 Expected: `95`, `67`, `43`, `75`, `64`, `75`, `48`, `62`, `42`, `35`, `43`, `24`,
 `29` and `41 checks, 0 failures`.
 
+## Caching, and why the first build is so much slower
+
+**Expect the first command of the day to take about a minute, and every one after it
+about a second.** That is not the firmware compiling — six translation units of this
+size are nothing. On Windows the `x86_64-windows-gnu` target makes zig build the
+mingw-w64 C runtime from source before it can link anything, and that is the minute.
+Measured here on `test_laps`: **62 s against an empty cache, 1.3 s** for the same build
+with one source file genuinely changed.
+
+The cache is **global rather than per project** — `%LOCALAPPDATA%\zig` on Windows,
+`~/.cache/zig` elsewhere. One test binary put 72 MB in it; across a project's life it
+reaches a few hundred MB. It is safe to delete at any time and the next build refills
+it, at the cost of paying that minute again.
+
+It is also **content-addressed, not timestamp-addressed**. `touch` on a source changes
+nothing — zig hashes what is in the file, so a rebuild after touching every file in the
+tree still relinks from cache in about a second. Only edits that change bytes cost
+anything, and only for the translation units they touch.
+
+If a build ever fails in a way that makes no sense against the source in front of you —
+a symbol that should be there, a header change that seems not to have landed — delete
+that directory before believing the error. It is rare, and it is the only thing in this
+harness that can lie to you.
+
+**CI caches nothing for this suite, deliberately.** On the Linux runner the mingw build
+never happens — zig links the system libc — so the numbers are completely different:
+`pip install ziglang` takes 13 s, and building *and running* all fourteen binaries takes
+9 s, for a 28 s job from a cold start. Restoring and saving a cache around a job shorter
+than the restore itself buys nothing, and a stale one would cost more debugging than it
+could ever save.
+
+The firmware workflow is the opposite case and does cache: its espressif32 toolchain is
+a few hundred MB and minutes, keyed on `platformio.ini` so that changing the platform or
+a library version refills the cache rather than quietly building against the old one.
+
+The GPX fixtures are not cached either — `gen_gpx.py` regenerates them in about a second,
+and they are `.gitignore`d precisely so a stale 20 001-point course cannot outlive the
+generator that made it.
+
 ## What the GPX fixtures cover
 
 | File | Exercises |
