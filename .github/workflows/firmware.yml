@@ -1,0 +1,66 @@
+name: firmware
+
+# The host tests prove the arithmetic; this proves the thing still links for the
+# hardware. They are separate workflows because they fail for different reasons
+# and on different timescales - the suite is seconds, a cold toolchain is minutes.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: esp32-s3 (edge_s3)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # The espressif32 platform pulls a few hundred MB of toolchain. Keyed on
+      # platformio.ini so a changed platform or library version rebuilds the
+      # cache instead of quietly building against the old one.
+      - name: Cache the PlatformIO toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: pio-${{ runner.os }}-
+
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+
+      - name: Build
+        run: |
+          set -o pipefail
+          pio run -e edge_s3 2>&1 | tee build.log
+
+      # The README quotes a flash figure, and a figure nobody re-reads goes
+      # stale. This puts the real one on every run's summary page.
+      - name: Report the size
+        if: always()
+        run: |
+          {
+            echo '### Firmware size'
+            echo ''
+            echo '```'
+            grep -E '^(RAM|Flash):' build.log || echo 'no size line - the build did not get that far'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the image
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-edge_s3
+          path: |
+            .pio/build/edge_s3/firmware.bin
+            .pio/build/edge_s3/firmware.elf
+          if-no-files-found: error
+          retention-days: 14
